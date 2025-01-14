@@ -1,0 +1,15 @@
+C:\Users\huangshaozheng\Desktop\kesheersi\FilmSys-master\FilmSys-master\film_api
+
+nodemon app.js
+
+
+C:\Users\huangshaozheng\Desktop\kesheersi\FilmSys-master\FilmSys-master\film
+
+
+npm start
+
+
+C:\Users\huangshaozheng\Desktop\kesheersi\FilmSys-master\FilmSys-master\film_admin
+
+
+npm start

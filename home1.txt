@@ -1,0 +1,357 @@
+<template>
+  <!-- 主页组件的根元素 -->
+  <div id="home">
+    <!-- 头部区域，使用Element UI的el-row组件 -->
+    <el-row class="header" :class="{ 'is-scrolling': isScrolling }">
+      <!-- 管理员信息存在时显示头部栏 -->
+      <div class="head-bar" v-if="adminInfo.name">
+        <!-- 左侧包含logo和网站名称 -->
+        <div class="left" @click="toggleSidebar">
+          <!-- 使用自定义图标作为logo，并设置样式 -->
+          <i class="icon-film-logo" style="font-size: 48px;margin-right: 15px;"></i>
+          <!-- 显示网站标题 -->
+          <span slot="title" style="font-size: 18px;font-weight: bolder;color: #333;">92电影</span>
+        </div>
+        <!-- 右侧包含用户头像和下拉菜单 -->
+        <div class="right">
+          <!-- 动态绑定管理员头像 -->
+          <img
+            :src="server + adminInfo.avatar"
+            class="user-avatar"
+            width="40px"
+            height="40px"
+            style="border-radius: 20px"
+          />
+          <!-- 下拉菜单组件，用于显示管理员操作选项 -->
+          <el-dropdown style="margin-left: 15px;">
+            <!-- 下拉菜单触发按钮 -->
+            <span class="el-dropdown-link">
+              {{adminInfo.name}}
+              <i class="el-icon-arrow-down el-icon--right"></i>
+            </span>
+            <!-- 下拉菜单内容 -->
+            <el-dropdown-menu slot="dropdown">
+              <el-dropdown-item>个人信息</el-dropdown-item>
+              <el-dropdown-item @click.native="logout">退出</el-dropdown-item>
+            </el-dropdown-menu>
+          </el-dropdown>
+        </div>
+      </div>
+    </el-row>
+    <!-- 容器区域，包含导航栏和主要内容 -->
+    <el-row class="container">
+      <div class="section">
+        <!-- 导航栏 -->
+        <transition name="sidebar-transition">
+          <div class="nav-bar" :class="{ 'collapsed': isSidebarCollapsed }">
+            <!-- Element UI的菜单组件，左侧垂直布局 -->
+            <el-menu :default-active="currentMenuIndex" class="el-menu-vertical" @open="handleOpen" @close="handleClose">
+              <!-- 每个菜单项都绑定了点击事件，用于路由跳转 -->
+              <el-menu-item index="/user_manage" @click="handleMenuItemClick('/user_manage')">
+                <i class="el-icon-user-solid"></i>
+                <span slot="title">用户管理</span>
+              </el-menu-item>
+              <el-menu-item index="/movie_manage" @click="handleMenuItemClick('/movie_manage')">
+                <i class="el-icon-s-kpi"></i>
+                <span slot="title">电影管理</span>
+              </el-menu-item>
+              <el-menu-item index="/cinema_manage" @click="handleMenuItemClick('/cinema_manage')">
+                <i class="el-icon-video-camera-solid"></i>
+                <span slot="title">影院管理</span>
+              </el-menu-item>
+              <el-menu-item index="/hall_manage" @click="handleMenuItemClick('/hall_manage')">
+                <i class="el-icon-bangzhu"></i>
+                <span slot="title">影厅管理</span>
+              </el-menu-item>
+              <el-menu-item index="/movie_schedule" @click="handleMenuItemClick('/movie_schedule')">
+                <i class="el-icon-s-fold"></i>
+                <span slot="title">电影排片</span>
+              </el-menu-item>
+              <el-menu-item index="/comment_manage" @click="handleMenuItemClick('/comment_manage')">
+                <i class="el-icon-s-comment"></i>
+                <span slot="title">评论管理</span>
+              </el-menu-item>
+              <el-menu-item index="/order_manage" @click="handleMenuItemClick('/order_manage')">
+                <i class="el-icon-s-ticket"></i>
+                <span slot="title">订单管理</span>
+              </el-menu-item>
+              <el-menu-item index="/messageshow_manage" @click="handleMenuItemClick('/messageshow_manage')">
+                <i class="el-icon-user-solid"></i>
+                <span slot="title">信息可视化管理</span>
+              </el-menu-item>
+            </el-menu>
+          </div>
+        </transition>
+        <!-- 路由视图，用于渲染匹配到的组件 -->
+        <router-view class="content" />
+      </div>
+    </el-row>
+  </div>
+</template>
+
+<script>
+import Vue from "vue";
+// 导入获取管理员信息的API函数
+import { getAdminInfo } from "../../api";
+// 导入并注册Element UI的相关组件
+import {
+  Message,
+  Dropdown,
+  DropdownMenu,
+  DropdownItem,
+  RadioGroup,
+  RadioButton
+} from "element-ui";
+
+// 注册全局组件
+Vue.component(Dropdown.name, Dropdown);
+Vue.component(DropdownMenu.name, DropdownMenu);
+Vue.component(DropdownItem.name, DropdownItem);
+Vue.component(RadioGroup.name, RadioGroup);
+Vue.component(RadioButton.name, RadioButton);
+
+export default {
+  name: "Home",
+  data() {
+    return {
+      // 定义服务器地址
+      server: "http://localhost:3000",
+      // 存储管理员信息的对象
+      adminInfo: {},
+      // 当前激活的菜单索引
+      currentMenuIndex: "/user_manage",
+      // 是否正在滚动
+      isScrolling: false,
+      // 侧边栏是否折叠
+      isSidebarCollapsed: false
+    };
+  },
+  created() {
+    this.loadAdminInfo();
+    window.addEventListener('scroll', this.handleScroll);
+  },
+  beforeDestroy() {
+    window.removeEventListener('scroll', this.handleScroll);
+  },
+  methods: {
+    async loadAdminInfo() {
+      if (this.$cookies.get("admin_id")) {
+        let json = await getAdminInfo(this.$cookies.get("admin_id"));
+        if (json.success_code === 200) {
+          this.adminInfo = json.data;
+          console.log(this.adminInfo);
+        }
+      } else {
+        this.$router.push({ path: "/login" });
+        Message.error("请先登录！");
+      }
+    },
+    logout() {
+      this.$cookies.remove("admin_id");
+      this.$router.push("/login");
+      Message.success("退出成功！");
+    },
+    handleMenuItemClick(path) {
+      this.$router.push("/home" + path);
+      this.currentMenuIndex = path;
+    },
+    toggleSidebar() {
+      this.isSidebarCollapsed = !this.isSidebarCollapsed;
+    },
+    handleScroll() {
+      this.isScrolling = true;
+      setTimeout(() => {
+        this.isScrolling = false;
+      }, 200);
+    },
+    handleOpen(key, keyPath) {
+      console.log(key, keyPath);
+    },
+    handleClose(key, keyPath) {
+      console.log(key, keyPath);
+    }
+  }
+};
+</script>
+
+<style scoped>
+/* 整体页面基础样式 */
+#home {
+  width: 100%;
+  min-height: 100vh;
+  background-color: var(--background-color);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 头部区域样式 */
+.header {
+  width: 100%;
+  height: 64px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 0 8px 1px rgba(0, 0, 0, 0.1);
+  z-index: 9;
+  background: linear-gradient(90deg, #f5f5f5, #ffffff);
+  padding: 0 15px;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+}
+
+.header:hover {
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.header.left,
+.header.right {
+  display: flex;
+  align-items: center;
+}
+
+.header.left {
+  gap: 10px;
+  cursor: pointer;
+  animation: fadeInLeft 1s;
+}
+
+.header.right {
+  gap: 10px;
+  animation: fadeInRight 1s;
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 容器区域样式 */
+.container {
+  display: flex;
+  flex: 1;
+  width: 100%;
+}
+
+.section {
+  width: 100%;
+  display: flex;
+  box-sizing: border-box;
+}
+
+/* 导航栏样式，采用响应式宽度 */
+.nav-bar {
+  width: 20%;
+  min-width: 200px;
+  border-bottom: 1px solid var(--border-color);
+  transition: width 0.3s ease;
+  overflow: hidden;
+}
+
+.nav-bar.collapsed {
+  width: 60px;
+}
+
+/* 小屏幕设备下导航栏宽度自适应 */
+@media screen and (max-width: 768px) {
+  .nav-bar {
+    width: 100%;
+    min-width: auto;
+  }
+
+  .nav-bar.collapsed {
+    width: 100%;
+  }
+}
+
+/* 菜单样式优化 */
+.el-menu {
+  border: none;
+  border-right: 1px solid var(--border-color);
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+}
+
+.el-menu-item {
+  height: 50px;
+  line-height: 50px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 15px;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.el-menu-item,
+.el-menu-item i {
+  color: var(--text-color);
+}
+
+.el-menu-item.is-active {
+  color: #fff;
+  background-color: var(--primary-color);
+}
+
+.el-menu-item.is-active i {
+  color: #fff;
+}
+
+/* 路由视图内容区域样式 */
+.content {
+  width: 80%;
+  min-width: 300px;
+  padding: 30px;
+  background-color: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-left: none;
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+  overflow-y: auto;
+  /* 滚动条样式优化 */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: #f5f5f5;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: #ccc;
+    border-radius: 4px;
+  }
+}
+
+/* 内容区域在小屏幕设备下占满宽度 */
+@media screen and (max-width: 768px) {
+  .content {
+    width: 100%;
+    min-width: auto;
+  }
+}
+
+/* 侧边栏过渡效果 */
+.sidebar-transition-enter-active,
+.sidebar-transition-leave-active {
+  transition: opacity 0.5s, transform 0.5s;
+}
+
+.sidebar-transition-enter, .sidebar-transition-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+</style>

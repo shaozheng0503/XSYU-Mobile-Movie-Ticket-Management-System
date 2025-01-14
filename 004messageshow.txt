@@ -1,0 +1,364 @@
+<template>
+  <div id="message-show-container">
+    <h2>电影售票信息综合展示</h2>
+    <div class="charts-grid">
+      <!-- 电影售票数量柱状图 -->
+      <div class="chart-item">
+        <h3>电影售票数量柱状图</h3>
+        <svg :width="barChartWidth" :height="barChartHeight">
+          <rect x="0" y="0" width="100%" height="100%" fill="rgba(240, 240, 240, 0.5)" />
+          <g class="chart-content">
+            <!-- 这里的内容会根据具体图表绘制动态变化 -->
+          </g>
+        </svg>
+      </div>
+      <!-- 售票数量随时间变化折线图 -->
+      <div class="chart-item">
+        <h3>售票数量随时间变化折线图</h3>
+        <svg :width="lineChartWidth" :height="lineChartHeight">
+          <rect x="0" y="0" width="100%" height="100%" fill="rgba(240, 240, 240, 0.5)" />
+          <g class="chart-content">
+            <!-- 这里的内容会根据具体图表绘制动态变化 -->
+          </g>
+        </svg>
+      </div>
+      <!-- 各电影售票占比饼图 -->
+      <div class="chart-item">
+        <h3>各电影售票占比饼图</h3>
+        <svg :width="pieChartWidth" :height="pieChartHeight">
+          <rect x="0" y="0" width="100%" height="100%" fill="rgba(240, 240, 240, 0.5)" />
+          <g class="chart-content">
+            <!-- 这里的内容会根据具体图表绘制动态变化 -->
+          </g>
+        </svg>
+      </div>
+      <!-- 售票情况散点图 -->
+      <div class="chart-item">
+        <h3>售票情况散点图</h3>
+        <svg :width="scatterChartWidth" :height="scatterChartHeight">
+          <rect x="0" y="0" width="100%" height="100%" fill="rgba(240, 240, 240, 0.5)" />
+          <g class="chart-content">
+            <!-- 这里的内容会根据具体图表绘制动态变化 -->
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import * as XLSX from 'xlsx';
+import { select } from 'd3-selection';
+import { scaleBand, scaleLinear, scaleTime } from 'd3-scale';
+import { axisBottom, axisLeft, axisRight } from 'd3-axis';
+import { arc, pie } from 'd3-shape';
+
+export default {
+  name: 'MessageShowManage',
+  data() {
+    return {
+      barChartWidth: 400, // 柱状图宽度，可根据实际调整
+      barChartHeight: 300, // 柱状图高度，可根据实际调整
+      lineChartWidth: 400, // 折线图宽度，可根据实际调整
+      lineChartHeight: 300, // 折线图高度，可根据实际调整
+      pieChartWidth: 400, // 饼图宽度，可根据实际调整
+      pieChartHeight: 300, // 饼图高度，可根据实际调整
+      scatterChartWidth: 400, // 散点图宽度，可根据实际调整
+      scatterChartHeight: 300, // 散点图高度，可根据实际调整
+      ticketData: [], // 初始化为空数组，后续通过读取Excel获取数据填充
+      timeSeriesData: [], // 初始化为空数组，后续通过读取Excel获取数据填充
+      totalTicketsSold: 0 // 初始化为0，后续通过读取Excel获取数据更新
+    };
+  },
+  mounted() {
+    // 调用方法读取本地Excel文件数据
+    this.fetchData();
+  },
+  methods: {
+    fetchData() {
+      const workbook = XLSX.readFile('C:\\Users\\huangshaozheng\\Desktop\\movie.xlsx'); // 直接指定本地Excel文件路径
+      const sheetNames = workbook.SheetNames;
+      const sheet = workbook.Sheets[sheetNames[0]]; // 这里假设读取第一个工作表，可根据实际调整
+      const data = XLSX.utils.sheet_to_json(sheet);
+
+      // 根据Excel数据结构调整以下解析逻辑，假设数据结构有对应的列名来匹配
+      this.ticketData = data.map(item => ({
+        movie: item.FilmName, // 假设Excel中有'FilmName'列存储电影名称
+        ticketsSold: item.SoldTickets // 假设Excel中有'SoldTickets'列存储售票数量
+      }));
+      this.timeSeriesData = data.map(item => ({
+        movie: item.FilmName,
+        date: new Date(item.ShowDate), // 假设Excel中有'ShowDate'列存储日期，需转换为Date对象
+        tickets: item.TimeTickets // 假设Excel中有'TimeTickets'列存储对应时间的售票数量
+      }));
+      this.totalTicketsSold = data.reduce((sum, item) => sum + item.SoldTickets, 0);
+
+      // 数据获取成功后调用绘制图表方法
+      this.drawBarChart(this.$el.querySelector('.chart-item:nth-child(1) svg'));
+      this.drawLineChart(this.$el.querySelector('.chart-item:nth-child(2) svg'));
+      this.drawPieChart(this.$el.querySelector('.chart-item:nth-child(3) svg'));
+      this.drawScatterChart(this.$el.querySelector('.chart-item:nth-child(4) svg'));
+    },
+    drawBarChart(svg) {
+      const margin = { top: 20, right: 20, bottom: 50, left: 50 };
+      const innerWidth = this.barChartWidth - margin.left - margin.right;
+      const innerHeight = this.barChartHeight - margin.top - margin.bottom;
+
+      // 创建X轴比例尺（基于电影名称分类）
+      const xScale = scaleBand()
+     .domain(this.ticketData.map(d => d.movie))
+     .range([0, innerWidth])
+     .padding(0.2);
+
+      // 创建Y轴比例尺（基于售票数量范围）
+      const yScale = scaleLinear()
+     .domain([0, Math.max(...this.ticketData.map(d => d.ticketsSold))])
+     .range([innerHeight, 0]);
+
+      // 创建X轴
+      const xAxis = axisBottom(xScale);
+      // 创建Y轴
+      const yAxis = axisLeft(yScale);
+
+      const g = select(svg).select('.chart-content').append('g')
+     .attr('transform', `translate(${margin.left},${margin.top})`);
+
+      // 添加X轴元素到图表
+      g.append('g')
+     .attr('class', 'x-axis')
+     .attr('transform', `translate(0,${innerHeight})`)
+     .call(xAxis);
+
+      // 添加Y轴元素到图表
+      g.append('g')
+     .attr('class', 'y-axis')
+     .call(yAxis);
+
+      // 创建柱状图的矩形元素，添加鼠标悬停互动效果，显示具体票数
+      const bars = g.selectAll('rect')
+     .data(this.ticketData)
+     .enter()
+     .append('rect')
+     .attr('x', d => xScale(d.movie))
+     .attr('y', d => yScale(0))
+     .attr('width', xScale.bandwidth())
+     .attr('height', d => innerHeight - yScale(0))
+     .attr('fill', 'steelblue')
+     .on('mouseover', function (d) {
+          // 鼠标悬停时显示提示框
+          const tooltip = select('body').append('div')
+         .attr('class', 'tooltip')
+         .style('position', 'absolute')
+         .style('background-color', 'white')
+         .style('border', '1px solid gray')
+         .style('padding', '5px')
+         .html(`电影: ${d.movie}<br>售票数: ${d.ticketsSold}`);
+        })
+     .on('mouseout', function () {
+          // 鼠标移开时移除提示框
+          select('.tooltip').remove();
+        })
+     .transition()
+     .duration(1000)
+     .attr('y', d => yScale(d.ticketsSold))
+     .attr('height', d => innerHeight - yScale(d.ticketsSold));
+    },
+    drawLineChart(svg) {
+      const margin = { top: 20, right: 20, bottom: 50, left: 50 };
+      const innerWidth = this.lineChartWidth - margin.left - margin.right;
+      const innerHeight = this.lineChartHeight - margin.top - margin.bottom;
+
+      // 提取不同电影的数据数组
+      const movieData = {};
+      this.timeSeriesData.forEach(d => {
+        if (!movieData[d.movie]) {
+          movieData[d.movie] = [];
+        }
+        movieData[d.movie].push(d.tickets);
+      });
+
+      // 创建X轴比例尺（基于时间阶段）
+      const xScale = scaleTime()
+     .domain(d3.extent(this.timeSeriesData, d => d.date))
+     .range([0, innerWidth]);
+
+      // 创建Y轴比例尺（基于售票数量范围）
+      const yScale = scaleLinear()
+     .domain([0, Math.max(...this.timeSeriesData.map(d => d.tickets))])
+     .range([innerHeight, 0]);
+
+      // 创建X轴
+      const xAxis = axisBottom(xScale);
+      // 创建Y轴
+      const yAxis = axisLeft(yScale);
+
+      const g = select(svg).select('.chart-content').append('g')
+     .attr('transform', `translate(${margin.left},${margin.top})`);
+
+      // 添加X轴元素到图表
+      g.append('g')
+     .attr('class', 'x-axis')
+     .attr('transform', `translate(0,${innerHeight})`)
+     .call(xAxis);
+
+      // 添加Y轴元素到图表
+      g.append('g')
+     .attr('class', 'y-axis')
+     .call(yAxis);
+
+      // 绘制各电影的折线，添加点击互动效果，点击线条突出显示
+      for (const movie in movieData) {
+        const line = d3.line()
+       .x(d => xScale(d.date))
+       .y(d => yScale(d.tickets));
+
+        const path = g.append('path')
+       .datum(movieData[movie])
+       .attr('fill', 'none')
+       .attr('stroke', 'orange')
+       .attr('stroke-width', 2)
+       .attr('d', line)
+       .on('click', function () {
+            // 点击时改变线条颜色突出显示
+            select(this).attr('stroke', 'red').attr('stroke-width', 3);
+          });
+      }
+    },
+    drawPieChart(svg) {
+      const margin = { top: 20, right: 20, bottom: 20, left: 20 };
+      const width = this.pieChartWidth - margin.left - margin.right;
+      const height = this.pieChartHeight - margin.top - margin.bottom;
+      const radius = Math.min(width, height) / 2;
+
+      const pieGenerator = pie()
+     .value(d => d.ticketsSold)
+     .sort(null);
+
+      const arcGenerator = arc()
+     .outerRadius(radius)
+     .innerRadius(0);
+
+      const g = select(svg).select('.chart-content').append('g')
+     .attr('transform', `translate(${width / 2 + margin.left},${height / 2 + margin.top})`);
+
+      // 添加鼠标悬停互动效果，显示电影名称和占比
+      const arcs = g.selectAll('path')
+     .data(pieGenerator(this.ticketData))
+     .enter()
+     .append('path')
+     .attr('fill', d => this.getColor(d.data.movie))
+     .attr('d', arcGenerator)
+     .on('mouseover', function (d) {
+          const tooltip = select('body').append('div')
+         .attr('class', 'tooltip')
+         .style('position', 'absolute')
+         .style('background-color', 'white')
+         .style('border', '1px solid gray')
+         .style('padding', '5px')
+         .html(`电影: ${d.data.movie}<br>占比: ${((d.data.ticketsSold / this.totalTicketsSold) * 100).toFixed(2)}%`);
+        }, this)
+     .on('mouseout', function () {
+          select('.tooltip').remove();
+        });
+    },
+    drawScatterChart(svg) {
+      const margin = { top: 20, right: 20, bottom: 50, left: 50 };
+      const innerWidth = this.scatterChartWidth - margin.left - margin.right;
+      const innerHeight = this.scatterChartHeight - margin.top - margin.bottom;
+
+      // 创建X轴比例尺（基于时间阶段）
+      const xScale = scaleTime()
+     .domain(d3.extent(this.timeSeriesData, d => d.date))
+     .range([0, innerWidth]);
+
+      // 创建Y轴比例尺（基于售票数量范围）
+      const yScale = scaleLinear()
+     .domain([0, Math.max(...this.timeSeriesData.map(d => d.tickets))])
+     .range([innerHeight, 0]);
+
+      // 创建X轴
+      const xAxis = axisBottom(xScale);
+      // 创建Y轴
+      const yAxis = axisLeft(yScale);
+
+      const g = select(svg).select('.chart-content').append('g')
+     .attr('transform', `translate(${margin.left},${margin.top})`);
+
+      // 添加X轴元素到图表
+      g.append('g')
+     .attr('class', 'x-axis')
+     .attr('transform', `translate(0,${innerHeight})`)
+     .call(xAxis);
+
+      // 添加Y轴元素到图表
+      g.append('g')
+     .attr('class', 'y-axis')
+     .call(yAxis);
+
+      // 绘制散点，添加鼠标悬停互动效果，显示电影名称和对应的售票数量
+      const dots = g.selectAll('circle')
+     .data(this.timeSeriesData)
+     .enter()
+     .append('circle')
+     .attr('cx', d => xScale(d.date))
+     .attr('cy', d => yScale(d.tickets))
+     .attr('r', 5)
+     .attr('fill', 'purple')
+     .on('mouseover', function (d) {
+          const tooltip = select('body').append('div')
+         .attr('class', 'tooltip')
+         .style('position', 'absolute')
+         .style('background-color', 'white')
+         .style('border', '1px solid gray')
+         .style('padding', '5px')
+         .html(`电影: ${d.movie}<br>售票数: ${d.tickets}`);
+        })
+     .on('mouseout', function () {
+          select('.tooltip').remove();
+        });
+    },
+    getColor(movie) {
+      const colorMap = {
+        '电影A': 'red',
+        '电影B': 'green',
+        '电影C': 'blue',
+        '电影D': 'yellow',
+        '电影E': 'cyan',  // 为新增电影添加对应的颜色
+        '电影F': 'magenta'
+      };
+      return colorMap[movie];
+    }
+  }
+};
+</script>
+
+<style scoped>
+#message-show-container {
+  text-align: center;
+  padding: 20px;  /* 添加内边距，让整体更美观 */
+  background-color: #f8f8f8;  /* 设置背景色 */
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-gap: 20px;
+}
+
+.chart-item {
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 10px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);  /* 添加阴影效果，增强立体感 */
+}
+
+.x-axis text {
+  transform: rotate(-45deg);
+  text-anchor: end;
+}
+
+/* 为提示框添加样式 */
+.tooltip {
+  z-index: 10;  /* 提高层级，确保显示在图表之上 */
+}
+</style>
